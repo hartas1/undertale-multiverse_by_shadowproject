@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORE SYSTEM — Rapport d'effondrement du Multivers</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #00ff88;
+    --green-dim: #00aa55;
+    --green-dark: #004422;
+    --red: #ff3333;
+    --red-dim: #aa1111;
+    --yellow: #ffdd00;
+    --cyan: #00ffff;
+    --orange: #ff8800;
+    --bg: #020a05;
+    --text: #b0ffcc;
+    --text-dim: #446655;
+    --border: #0a2a15;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* CRT scanlines overlay */
+  body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* CRT vignette */
+  body::after {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
+    pointer-events: none;
+    z-index: 998;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 20px 40px;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    border: 1px solid var(--green-dim);
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .header::before {
+    content: '';
+    position: absolute; top: -1px; left: 10px; right: 10px; height: 1px;
+    background: var(--bg);
+  }
+  .header-title {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: 3px;
+  }
+  .header-sub { color: var(--text-dim); font-size: 10px; margin-top: 4px; letter-spacing: 2px; }
+
+  /* ─── STATUS BAR ─── */
+  .status-bar {
+    display: flex; flex-wrap: wrap; gap: 16px;
+    margin-bottom: 14px; font-size: 10px; color: var(--text-dim);
+  }
+  .status-crit { color: var(--red); animation: blink 0.9s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* ─── TERMINAL ─── */
+  .terminal {
+    font-size: 11px;
+    line-height: 1.9;
+    min-height: 240px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 18px;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-dark) transparent;
+  }
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--green-dark); }
+
+  .line { display: block; }
+  .line.sys   { color: var(--cyan); }
+  .line.warn  { color: var(--yellow); }
+  .line.err   { color: var(--red); }
+  .line.dim   { color: var(--text-dim); }
+  .line.ok    { color: var(--green); }
+  .line.white { color: #ddd; }
+  .line.red-bold { color: var(--red); font-family: 'VT323', monospace; font-size: 16px; letter-spacing: 2px; }
+  .line.orange { color: var(--orange); }
+
+  .cursor {
+    display: inline-block; width: 8px; height: 12px;
+    background: var(--green); vertical-align: middle;
+    animation: blink 0.7s step-end infinite;
+  }
+
+  /* ─── MAP SECTION ─── */
+  #map-section { opacity: 0; transition: opacity 1.2s; }
+  #map-section.visible { opacity: 1; }
+
+  .section-title {
+    font-size: 10px; color: var(--text-dim);
+    letter-spacing: 2px; margin-bottom: 10px;
+  }
+
+  /* ─── UNIVERSE GRID ─── */
+  .universe-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .universe-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  .uni-node {
+    border: 1px solid #1a3a28;
+    padding: 7px 5px;
+    text-align: center;
+    font-size: 9px;
+    cursor: pointer;
+    transition: border-color 0.4s, background 0.4s, opacity 0.4s;
+    user-select: none;
+    position: relative;
+  }
+  .uni-node:hover { border-color: var(--green-dim); }
+
+  .uni-node .uname {
+    display: block; font-size: 9px; margin-bottom: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: bold;
+  }
+  .uni-node .ustatus { display: block; font-size: 8px; }
+
+  /* ALIVE */
+  .uni-node.alive { border-color: #1a5a30; background: #010f06; color: var(--green); }
+  .uni-node.alive .uname { color: var(--green); }
+  .uni-node.alive .ustatus { color: var(--green-dim); }
+
+  /* DYING — orange flash */
+  .uni-node.dying {
+    border-color: var(--orange);
+    background: #150800;
+    color: var(--orange);
+    animation: dying-flash 0.5s ease-in-out 4;
+  }
+  .uni-node.dying .uname { color: var(--orange); }
+  .uni-node.dying .ustatus { color: #cc6600; }
+  @keyframes dying-flash {
+    0%,100% { box-shadow: none; }
+    50% { box-shadow: 0 0 14px var(--orange); border-color: var(--yellow); }
+  }
+
+  /* DEAD — visible gris clair, pas trop sombre */
+  .uni-node.dead {
+    border-color: #3a3a3a;
+    background: #111111;
+    color: #888;
+    opacity: 0.75;
+  }
+  .uni-node.dead .uname { color: #999; }
+  .uni-node.dead .ustatus { color: #666; }
+
+  /* CORRUPTED — rouge qui scintille */
+  .uni-node.corrupted {
+    border-color: #882200;
+    background: #0e0200;
+    color: #ff6644;
+    animation: corrupt-flicker 2.5s infinite;
+  }
+  .uni-node.corrupted .uname { color: #ff6644; }
+  .uni-node.corrupted .ustatus { color: #993322; }
+  @keyframes corrupt-flicker {
+    0%,85%,100% { opacity: 0.7; border-color: #882200; }
+    87% { opacity: 1; border-color: #ff4400; box-shadow: 0 0 8px #ff2200; }
+    90% { opacity: 0.4; }
+    93% { opacity: 0.9; border-color: #aa3300; }
+  }
+
+  /* LOCKED — bleu froid */
+  .uni-node.locked {
+    border-color: #223355;
+    background: #03050f;
+    color: #5577aa;
+  }
+  .uni-node.locked .uname { color: #6688bb; }
+  .uni-node.locked .ustatus { color: #334466; }
+
+  /* ABANDONED — brun/sépia désaturé */
+  .uni-node.abandoned {
+    border-color: #3a2a1a;
+    background: #0a0603;
+    color: #886655;
+  }
+  .uni-node.abandoned .uname { color: #997766; }
+  .uni-node.abandoned .ustatus { color: #553322; }
+
+  /* UNKNOWN — violet mystérieux */
+  .uni-node.unknown {
+    border-color: #442266;
+    background: #050010;
+    color: #9955cc;
+    animation: unknown-pulse 3s ease-in-out infinite;
+  }
+  .uni-node.unknown .uname { color: #bb77ff; }
+  .uni-node.unknown .ustatus { color: #664488; }
+  @keyframes unknown-pulse {
+    0%,100% { box-shadow: none; opacity: 0.7; }
+    50% { box-shadow: 0 0 8px #660099; opacity: 1; }
+  }
+
+  /* NOT_FOUND — cyan clignotant doux */
+  .uni-node.not_found {
+    border-color: #006655;
+    background: #000a08;
+    color: #00ccaa;
+    animation: nf-pulse 1.4s ease-in-out infinite;
+  }
+  .uni-node.not_found .uname { color: #00ffdd; }
+  .uni-node.not_found .ustatus { color: #008866; }
+  @keyframes nf-pulse {
+    0%,100% { opacity: 0.5; }
+    50% { opacity: 1; box-shadow: 0 0 10px #00aaaa; }
+  }
+
+  /* CRITICAL */
+  .uni-node.critical {
+    border-color: var(--red);
+    background: #130000;
+    color: var(--red);
+    animation: crit-pulse 0.8s ease-in-out infinite;
+  }
+  .uni-node.critical .uname { color: var(--red); }
+  .uni-node.critical .ustatus { color: var(--red-dim); }
+  @keyframes crit-pulse {
+    0%,100% { box-shadow: none; }
+    50% { box-shadow: 0 0 10px var(--red); }
+  }
+
+  /* ─── GLITCH EFFECTS ─── */
+
+  /* Glitch keyframe — décalage horizontal */
+  @keyframes glitch-shift {
+    0%,92%,100% { transform: translate(0,0); clip-path: none; }
+    93%  { transform: translate(-3px, 0); clip-path: inset(20% 0 60% 0); }
+    94%  { transform: translate( 3px, 0); clip-path: inset(55% 0 10% 0); }
+    95%  { transform: translate(-2px, 1px); clip-path: inset(35% 0 40% 0); }
+    96%  { transform: translate(0, 0); clip-path: none; }
+  }
+  @keyframes glitch-color {
+    0%,90%,100% { text-shadow: none; }
+    91% { text-shadow: -2px 0 #ff0044, 2px 0 #00ffcc; }
+    93% { text-shadow:  2px 0 #ff0044, -2px 0 #00ffcc; }
+    95% { text-shadow: none; }
+  }
+  @keyframes glitch-border {
+    0%,88%,100% { border-color: inherit; }
+    89% { border-color: #ff0044; box-shadow: 2px 0 0 #ff0044, -2px 0 0 #00ffcc; }
+    91% { border-color: #00ffcc; box-shadow: -2px 0 0 #ff0044, 2px 0 0 #00ffcc; }
+    93% { border-color: inherit; box-shadow: none; }
+  }
+  @keyframes glitch-opacity {
+    0%,85%,100% { opacity: 1; }
+    86% { opacity: 0.3; }
+    87% { opacity: 1; }
+    89% { opacity: 0.6; }
+    90% { opacity: 1; }
+  }
+
+  /* CENTRAL — glitch d'absence totale, clignotement brutal */
+  .uni-node.not_found.glitch-node {
+    animation: nf-pulse 1.4s ease-in-out infinite, glitch-shift 4s step-end infinite, glitch-border 4s step-end infinite !important;
+  }
+  .uni-node.not_found.glitch-node .uname {
+    animation: glitch-color 4s step-end infinite;
+  }
+  .uni-node.not_found.glitch-node .ustatus {
+    animation: glitch-opacity 3.2s step-end infinite;
+  }
+
+  /* GASTER — glitch lent et mystérieux, violet */
+  @keyframes gaster-glitch {
+    0%,80%,100% { transform: translate(0,0); clip-path: none; opacity: 0.7; }
+    81% { transform: translate(2px,0); clip-path: inset(10% 0 70% 0); opacity: 1; }
+    83% { transform: translate(-2px,0); clip-path: inset(60% 0 15% 0); opacity: 0.4; }
+    85% { transform: translate(0,0); clip-path: none; opacity: 0.9; }
+  }
+  @keyframes gaster-color {
+    0%,78%,100% { text-shadow: none; }
+    79% { text-shadow: -3px 0 #ff00ff, 3px 0 #00ffff; }
+    82% { text-shadow: none; }
+  }
+  .uni-node.unknown.glitch-node {
+    animation: unknown-pulse 3s ease-in-out infinite, gaster-glitch 5s step-end infinite !important;
+  }
+  .uni-node.unknown.glitch-node .uname {
+    animation: gaster-color 5s step-end infinite;
+  }
+
+  /* XTALE — glitch figé, cassé, décalé */
+  @keyframes xtale-glitch {
+    0%,75%,100% { transform: translate(0,0); }
+    76% { transform: translate(4px,0); clip-path: inset(0% 0 80% 0); }
+    77% { transform: translate(-4px,1px); clip-path: inset(50% 0 20% 0); }
+    78% { transform: translate(1px,-1px); clip-path: inset(25% 0 50% 0); }
+    79% { transform: translate(0,0); clip-path: none; }
+  }
+  @keyframes xtale-color {
+    0%,73%,100% { text-shadow: none; }
+    74% { text-shadow: 3px 0 #0044ff, -3px 0 #ffaa00; }
+    77% { text-shadow: none; }
+  }
+  .uni-node.locked.glitch-node {
+    animation: xtale-glitch 6s step-end infinite, glitch-border 6s step-end infinite !important;
+  }
+  .uni-node.locked.glitch-node .uname {
+    animation: xtale-color 6s step-end infinite;
+  }
+  .uni-node.locked.glitch-node .ustatus {
+    animation: glitch-opacity 4s step-end infinite;
+  }
+
+  /* REAPER — glitch doux mais régulier, "inactif" */
+  @keyframes reaper-flicker {
+    0%,70%,100% { opacity: 1; transform: translate(0,0); }
+    71% { opacity: 0.4; transform: translate(-2px, 0); }
+    72% { opacity: 0.9; transform: translate(2px, 0); }
+    73% { opacity: 1; transform: translate(0,0); }
+    74% { opacity: 0.6; }
+    75% { opacity: 1; }
+  }
+  @keyframes reaper-color {
+    0%,68%,100% { text-shadow: none; }
+    69% { text-shadow: -2px 0 #4488ff, 2px 0 #aaddff; }
+    72% { text-shadow: none; }
+  }
+  .legend {
+    font-size: 9px; color: var(--text-dim);
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .leg { width: 10px; height: 10px; border: 1px solid; display: inline-block; flex-shrink: 0; }
+  .leg.alive     { border-color: #1a5a30; background: #010f06; }
+  .leg.dead      { border-color: #3a3a3a; background: #111; }
+  .leg.corrupted { border-color: #882200; background: #0e0200; }
+  .leg.locked    { border-color: #223355; background: #03050f; }
+  .leg.abandoned { border-color: #3a2a1a; background: #0a0603; }
+  .leg.unknown   { border-color: #442266; background: #050010; }
+  .leg.not_found { border-color: #006655; background: #000a08; }
+
+  /* ─── PROGRESS BAR ─── */
+  .progress-bar { margin-bottom: 16px; }
+  .pb-label { font-size: 9px; color: var(--text-dim); margin-bottom: 4px; letter-spacing: 1px; }
+  .pb-track { height: 4px; background: #0a150d; position: relative; }
+  .pb-fill { height: 100%; background: var(--red); transition: width 0.6s ease; width: 0%; }
+  .pb-pct { font-size: 9px; color: var(--red); margin-top: 2px; text-align: right; }
+
+  /* ─── DETAIL PANEL ─── */
+  #detail-panel {
+    border: 1px solid #0a2a15;
+    padding: 12px 16px;
+    min-height: 80px;
+    transition: border-color 0.4s;
+  }
+  .detail-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .detail-title { color: #fff; font-family: 'VT323', monospace; font-size: 16px; letter-spacing: 1px; }
+  .detail-status { font-size: 9px; }
+  .detail-body { font-size: 10px; color: #7799aa; line-height: 1.8; }
+  .detail-hint { font-size: 9px; color: var(--text-dim); font-style: italic; margin-top: 4px; }
+
+  /* status color for detail */
+  .ds-alive     { color: var(--green); }
+  .ds-dead      { color: #888; }
+  .ds-corrupted { color: #ff6644; }
+  .ds-locked    { color: #5577aa; }
+  .ds-abandoned { color: #886655; }
+  .ds-unknown   { color: #bb77ff; }
+  .ds-not_found { color: #00ffdd; }
+  .ds-critical  { color: var(--red); }
+  .ds-dying     { color: var(--orange); }
+
+  /* ─── FINAL MESSAGE ─── */
+  #final-msg {
+    display: none;
+    margin-top: 20px;
+    border: 1px solid var(--red-dim);
+    padding: 16px;
+    text-align: center;
+    animation: final-in 1s ease forwards;
+  }
+  /* ─── REPLAY BUTTON ─── */
+  #replay-btn {
+    display: none;
+    margin-top: 14px;
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 8px 20px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #replay-btn:hover {
+    background: var(--green-dark);
+    border-color: var(--green);
+  }
+  #replay-btn:active { opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-title">◈ CORE SYSTEM — RAPPORT D'ÉTAT DU MULTIVERS ◈</div>
+    <div class="header-sub">TERMINAL DE SURVEILLANCE DIMENSIONNELLE v0.7.3 — ACCÈS RESTREINT — NIVEAU OMEGA</div>
+  </div>
+
+  <div class="status-bar">
+    <span>NODE: CORE-PRIMARY</span>
+    <span>DATE: ERR_TIME_UNSTABLE</span>
+    <span class="status-crit">⚠ ALERTE CRITIQUE ACTIVE</span>
+    <span>UNIVERS ACTIFS: <span id="alive-count">15</span>/15</span>
+  </div>
+
+  <div class="terminal" id="terminal"><span class="cursor"></span></div>
+
+  <div id="map-section">
+    <div class="section-title">// CARTE DU MULTIVERS — ÉTAT EN TEMPS RÉEL — CLIQUER SUR UN NOEUD POUR DÉTAILS</div>
+    <div class="universe-grid" id="grid"></div>
+
+    <div class="legend">
+      <span><span class="leg alive"></span> actif</span>
+      <span><span class="leg corrupted"></span> corrompu</span>
+      <span><span class="leg locked"></span> verrouillé</span>
+      <span><span class="leg abandoned"></span> abandonné</span>
+      <span><span class="leg unknown"></span> inconnu</span>
+      <span><span class="leg not_found"></span> introuvable</span>
+      <span><span class="leg dead"></span> effondré</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="pb-label">TAUX D'EFFONDREMENT DU MULTIVERS</div>
+      <div class="pb-track"><div class="pb-fill" id="collapse-bar"></div></div>
+      <div class="pb-pct" id="collapse-pct">0%</div>
+    </div>
+
+    <div id="detail-panel">
+      <div class="detail-hint">↑ Cliquer sur un univers pour voir ses données.</div>
+    </div>
+  </div>
+
+  <div id="final-msg">
+    <div class="final-line1">LE MULTIVERS EST MORT</div>
+    <div class="final-line2">// fin de transmission — aucun signal détecté — silence total</div>
+    <button id="replay-btn" onclick="replayAnimation()">[ RELANCER LA SÉQUENCE ]</button>
+  </div>
+
+</div>
+
+<script>
+const universes = [
+  {
+    id:'central', name:'Univers Central', short:'CENTRAL', initState:'alive',
+    statusLabel:{ alive:'ACTIF', not_found:'INTROUVABLE' },
+    detail:{
+      alive:"Point d'ancrage de toute réalité. Tous les fils dimensionnels convergent ici.",
+      not_found:"Disparu du réseau — aucun signal, aucune trace de destruction. Simplement absent. Sans lui, les liens entre univers se déforment et la réalité commence à se disloquer. Son absence EST la cause de tout ce qui suit."
+    }
+  },
+  {
+    id:'dream', name:'Dreamtale', short:'DREAM', initState:'alive',
+    statusLabel:{ alive:'ACTIF', corrupted:'CORROMPU', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers des gardiens Dream et Nightmare, équilibre entre positif et négatif.",
+      corrupted:"Corrompu par un afflux massif de négatif. Nightmare a consommé les étoiles de son propre univers une à une, laissant Dream incapable de maintenir l'équilibre cosmique. La nuit n'a plus de fin ici.",
+      dead:"Dream n'a pas pu tenir. Sans l'Univers Central pour ancrer l'équilibre, le négatif a tout englouti."
+    }
+  },
+  {
+    id:'reaper', name:'Reapertale', short:'REAPER', initState:'alive',
+    statusLabel:{ alive:'ACTIF', locked:'VERROUILLÉ' },
+    detail:{
+      alive:"Domaine de Geno et Reaper, univers de la mort et du destin. Son Gaster jouait un rôle central dans l'équilibre structurel de cet univers.",
+      locked:"Chara a enfermé le Gaster de cet univers — l'entité qui en maintenait le fonctionnement. Sans lui, l'univers s'est figé. Verrouillé de l'intérieur, inactif. Geno et Reaper sont peut-être encore là, coincés dans un monde qui ne tourne plus."
+    }
+  },
+  {
+    id:'xtale', name:'Xtale', short:'XTALE', initState:'alive',
+    statusLabel:{ alive:'ACTIF', locked:'VERROUILLÉ' },
+    detail:{
+      alive:"Univers de Cross!Chara, figé dans un état semi-détruit depuis l'origine.",
+      locked:"Verrouillé — de l'intérieur ou de l'extérieur, impossible à déterminer. Cross avait déjà tenté d'en sortir pour collecter des âmes. Il est peut-être encore dedans. Peut-être parti. Le signal ne passe plus."
+    }
+  },
+  {
+    id:'fell', name:'Underfell', short:'U.FELL', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers de violence et brutalité — les monstres sont dangereux, les humains traqués.",
+      dying:"Les âmes s'épuisent. Les Déterminateurs ont disparu. Les structures narratives lâchent.",
+      dead:"La violence qui le définissait a fini par le consumer. Personne n'était là pour sauver quoi que ce soit."
+    }
+  },
+  {
+    id:'swap', name:'Underswap', short:'U.SWAP', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers où les rôles sont inversés — Chara remplace Frisk, Papyrus prend la place de Sans.",
+      dying:"La distorsion dimensionnelle atteint les fondations. Les inversions de rôles créent des paradoxes structurels.",
+      dead:"Sans ancrage central, les inversions de réalité sont devenues instables jusqu'à la dissolution."
+    }
+  },
+  {
+    id:'mafia', name:'Mafiatale', short:'MAFIA', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers criminel dominé par Asgore. Structure sociale rigide basée sur la peur.",
+      dying:"La pression dimensionnelle fait craquer la hiérarchie. Les fils narratifs sont tranchés.",
+      dead:"La structure criminelle qui maintenait cet univers ensemble s'est effondrée d'elle-même."
+    }
+  },
+  {
+    id:'fresh', name:'Freshtale', short:'FRESH', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers parasité par Fresh, entité sans âme propre qui survit en habitant d'autres corps.",
+      dying:"L'absence d'âme rendait Fresh résistant à la corruption — mais la réalité physique cède quand même.",
+      dead:"Même le parasite ne peut pas survivre sans substrat. Fresh est parti ailleurs... ou nulle part."
+    }
+  },
+  {
+    id:'error', name:'Anti-Void', short:'A.VOID', initState:'alive',
+    statusLabel:{ alive:'ACTIF', critical:'CRITIQUE', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Zone entre les univers habitée par Error!Sans. Il détruit les AU corrompus pour stopper la contagion.",
+      critical:"Error détruit les AU aussi vite qu'il peut. Mais l'effondrement est plus rapide que lui. Il commence à glitcher.",
+      dying:"Error s'est battu jusqu'au bout. La réalité autour de lui n'existe plus vraiment.",
+      dead:"Il n'y avait plus rien à protéger. Et sans les univers, l'Anti-Void lui-même n'a plus de raison d'être."
+    }
+  },
+  {
+    id:'ink', name:'Doodle Sphere', short:'INK', initState:'alive',
+    statusLabel:{ alive:'ACTIF', critical:'CRITIQUE', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Espace créatif d'Ink!Sans. Les ébauches d'univers non terminés s'y accumulent à l'infini.",
+      critical:"Ink voit tout s'effondrer mais ne peut pas intervenir partout. Sa palette se ternit. Les couleurs disparaissent.",
+      dying:"Les esquisses d'univers non nés brûlent. Tout ce qui n'a jamais existé cesse de ne pas exister.",
+      dead:"Il n'y a plus rien à créer. Ni à protéger. La sphère est vide."
+    }
+  },
+  {
+    id:'killer', name:'Killertale', short:'KILLER', initState:'alive',
+    statusLabel:{ alive:'ACTIF', abandoned:'ABANDONNÉ' },
+    detail:{
+      alive:"Univers corrompu par le HATE. Killer!Sans erre sans âme, guidé par une haine pure et vide.",
+      abandoned:"Tout le monde là-bas est mort depuis longtemps. Killer erre peut-être encore dans le vide — ou pas. Personne ne va vérifier. L'univers existe encore techniquement, mais il n'y a plus personne pour s'en soucier."
+    }
+  },
+  {
+    id:'dust', name:'Dusttale', short:'DUST', initState:'alive',
+    statusLabel:{ alive:'ACTIF', abandoned:'ABANDONNÉ' },
+    detail:{
+      alive:"Univers où Sans a massacré tous les personnages pour accumuler de la LV et briser le cycle.",
+      abandoned:"Dust!Sans attendait seul depuis des éternités. Il a peut-être obtenu ce qu'il voulait — la fin. L'univers est vide, silencieux, intact. Il n'y a juste plus personne dedans."
+    }
+  },
+  {
+    id:'horror', name:'Horrortale', short:'HORROR', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers post-effondrement de la surface. Famine, violence, Asgore tyrannique. Les monstres ont perdu leur humanité.",
+      dying:"Déjà au bord du gouffre depuis toujours. L'effondrement dimensionnel n'est que la conclusion logique.",
+      dead:"Il n'y avait plus rien à sauver depuis longtemps. La fin est presque un soulagement."
+    }
+  },
+  {
+    id:'outer', name:'Outertale', short:'OUTER', initState:'alive',
+    statusLabel:{ alive:'ACTIF', dying:'EFFONDREMENT', dead:'EFFONDRÉ' },
+    detail:{
+      alive:"Univers spatial où les personnages vivent dans les étoiles et les nébuleuses.",
+      dying:"Les étoiles meurent. Chaque supernova est un personnage qui disparaît dans l'espace.",
+      dead:"L'espace est vide. Toutes les étoiles se sont éteintes les unes après les autres."
+    }
+  },
+  {
+    id:'gaster', name:'W.D. Gaster', short:'GASTER', initState:'alive',
+    statusLabel:{ alive:'DÉTECTÉ', unknown:'INCONNU' },
+    detail:{
+      alive:"Entité fragmentée entre les timelines. Ni vraiment mort ni vraiment vivant. Observe depuis les interstices.",
+      unknown:"Les fragments de Gaster sont... quelque part. Ou partout. Ou nulle part. Le système ne peut pas localiser une entité qui existe entre les couches de réalité. Certains pensent qu'il est à l'origine de tout. Personne ne peut le confirmer."
+    }
+  },
+];
+
+const nodeStates = {};
+universes.forEach(u => nodeStates[u.id] = u.initState);
+
+const terminalLines = [
+  { delay:400,   type:'sys',      text:'> INITIALISATION DU PROTOCOLE DE SURVEILLANCE OMEGA...' },
+  { delay:900,   type:'ok',       text:'> Connexion aux noeuds primaires..................... OK' },
+  { delay:1400,  type:'ok',       text:'> Accès base de données multiverselle............... OK' },
+  { delay:1900,  type:'ok',       text:'> Calibration des capteurs dimensionnels............. OK' },
+  { delay:2500,  type:'warn',     text:'> ANOMALIE DÉTECTÉE — Noeud [CENTRAL] ne répond plus' },
+  { delay:3100,  type:'err',      text:'> ERREUR : L\'Univers Central — INTROUVABLE' },
+  { delay:3600,  type:'dim',      text:'> Tentative de reconnexion [1/5]... échec' },
+  { delay:4000,  type:'dim',      text:'> Tentative de reconnexion [2/5]... échec' },
+  { delay:4350,  type:'dim',      text:'> Tentative de reconnexion [3/5]... échec' },
+  { delay:4650,  type:'dim',      text:'> Tentative de reconnexion [4/5]... échec' },
+  { delay:4900,  type:'dim',      text:'> Tentative de reconnexion [5/5]... échec' },
+  { delay:5300,  type:'err',      text:'> VERDICT : L\'Univers Central n\'existe plus dans ce réseau.' },
+  { delay:5900,  type:'sys',      text:'> Lancement du diagnostic global du multivers...' },
+  { delay:6700,  type:'warn',     text:'> [DREAMTALE]   — CORRUPTION : 94.7% — négatif en surcharge' },
+  { delay:7100,  type:'warn',     text:'> [REAPERTALE]  — SIGNAL BLOQUÉ — Gaster interne neutralisé par Chara' },
+  { delay:7450,  type:'warn',     text:'> [XTALE]       — SIGNAL BLOQUÉ — noeud scellé' },
+  { delay:7800,  type:'err',      text:'> [KILLER/DUST] — présence biologique : 0 — univers vides' },
+  { delay:8200,  type:'err',      text:'> [UNDERFELL]   — instabilité critique — âmes : épuisées' },
+  { delay:8550,  type:'err',      text:'> [DUSTTALE]    — silence total — 1 entité max détectée' },
+  { delay:8900,  type:'err',      text:'> [HORRORTALE]  — effondrement structurel imminent' },
+  { delay:9250,  type:'warn',     text:'> [OUTERTALE]   — perte masse stellaire : +340%/cycle' },
+  { delay:9600,  type:'warn',     text:'> [GASTER]      — fragments : NON LOCALISABLES' },
+  { delay:9950,  type:'err',      text:'> [ERROR/INK]   — surcharge — tentent de contenir l\'effondrement' },
+  { delay:10500, type:'sys',      text:'> ────────────────────────────────────────────' },
+  { delay:11000, type:'red-bold', text:'> VERDICT FINAL : LE MULTIVERS EST EN TRAIN DE MOURIR' },
+  { delay:11600, type:'orange',   text:'> Initialisation visualisation en temps réel...' },
+];
+
+const collapseEvents = [
+  { delay:500,   id:'central', state:'not_found' },
+  { delay:1600,  id:'dream',   state:'corrupted' },
+  { delay:2400,  id:'reaper',  state:'locked' },
+  { delay:3000,  id:'xtale',   state:'locked' },
+  { delay:3800,  id:'killer',  state:'abandoned' },
+  { delay:4500,  id:'dust',    state:'abandoned' },
+  { delay:5200,  id:'gaster',  state:'unknown' },
+  { delay:6000,  id:'fell',    state:'dying' },
+  { delay:7400,  id:'fell',    state:'dead' },
+  { delay:6800,  id:'horror',  state:'dying' },
+  { delay:8000,  id:'horror',  state:'dead' },
+  { delay:7500,  id:'outer',   state:'dying' },
+  { delay:8800,  id:'outer',   state:'dead' },
+  { delay:8200,  id:'mafia',   state:'dying' },
+  { delay:9500,  id:'mafia',   state:'dead' },
+  { delay:9000,  id:'swap',    state:'dying' },
+  { delay:10200, id:'swap',    state:'dead' },
+  { delay:9800,  id:'fresh',   state:'dying' },
+  { delay:11000, id:'fresh',   state:'dead' },
+  { delay:10500, id:'error',   state:'critical' },
+  { delay:11200, id:'ink',     state:'critical' },
+  { delay:12000, id:'error',   state:'dying' },
+  { delay:12400, id:'ink',     state:'dying' },
+  { delay:13200, id:'error',   state:'dead' },
+  { delay:13800, id:'ink',     state:'dead' },
+  { delay:14200, id:'dream',   state:'dead' },
+];
+
+const GLITCH_IDS = new Set(['central','gaster','xtale','reaper']);
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  universes.forEach(u => {
+    const div = document.createElement('div');
+    div.className = 'uni-node alive';
+    div.id = 'node-' + u.id;
+    div.innerHTML = `<span class="uname">${u.short}</span><span class="ustatus">ACTIF</span>`;
+    div.addEventListener('click', () => showDetail(u.id));
+    grid.appendChild(div);
+  });
+}
+
+function getStatusLabel(u, state) {
+  if (u.statusLabel && u.statusLabel[state]) return u.statusLabel[state];
+  const defaults = { alive:'ACTIF', dead:'EFFONDRÉ', dying:'EFFONDREMENT...', corrupted:'CORROMPU', locked:'VERROUILLÉ', abandoned:'ABANDONNÉ', unknown:'INCONNU', not_found:'INTROUVABLE', critical:'CRITIQUE' };
+  return defaults[state] || state.toUpperCase();
+}
+
+function setNodeState(id, state) {
+  nodeStates[id] = state;
+  const u = universes.find(x => x.id === id);
+  const node = document.getElementById('node-' + id);
+  if (!node || !u) return;
+  const glitch = GLITCH_IDS.has(id) ? ' glitch-node' : '';
+  node.className = 'uni-node ' + state + glitch;
+  node.querySelector('.uname').textContent = u.short;
+  node.querySelector('.ustatus').textContent = getStatusLabel(u, state);
+  updateStats();
+}
+
+function updateStats() {
+  const alive = Object.values(nodeStates).filter(s => s === 'alive').length;
+  document.getElementById('alive-count').textContent = alive;
+  const notAlive = Object.values(nodeStates).filter(s => s !== 'alive').length;
+  const pct = Math.round((notAlive / universes.length) * 100);
+  document.getElementById('collapse-bar').style.width = pct + '%';
+  document.getElementById('collapse-pct').textContent = pct + '%';
+}
+
+function showDetail(id) {
+  const u = universes.find(x => x.id === id);
+  if (!u) return;
+  const state = nodeStates[id];
+  const label = getStatusLabel(u, state);
+  const text = (u.detail && u.detail[state]) ? u.detail[state] : (u.detail && u.detail.alive) ? u.detail.alive : '';
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-title">${u.name.toUpperCase()}</div>
+      <div class="detail-status ds-${state}">${label}</div>
+    </div>
+    <div class="detail-body">${text}</div>
+  `;
+  panel.style.borderColor = getNodeColor(state);
+}
+
+function getNodeColor(state) {
+  const colors = { alive:'#1a5a30', dead:'#3a3a3a', corrupted:'#882200', locked:'#223355', abandoned:'#3a2a1a', unknown:'#442266', not_found:'#006655', critical:'#aa0000', dying:'#884400' };
+  return colors[state] || '#0a2a15';
+}
+
+function addLine(type, text) {
+  const term = document.getElementById('terminal');
+  const cursor = term.querySelector('.cursor');
+  const span = document.createElement('span');
+  span.className = 'line ' + type;
+  span.textContent = text;
+  if (cursor) term.insertBefore(span, cursor);
+  else term.appendChild(span);
+  term.scrollTop = term.scrollHeight;
+}
+
+function runTerminal() {
+  terminalLines.forEach(item => {
+    setTimeout(() => addLine(item.type, item.text), item.delay);
+  });
+  setTimeout(() => {
+    const mapSection = document.getElementById('map-section');
+    mapSection.classList.add('visible');
+    buildGrid();
+    runCollapse();
+  }, 12200);
+}
+
+function runCollapse() {
+  collapseEvents.forEach(e => {
+    setTimeout(() => setNodeState(e.id, e.state), e.delay);
+  });
+  setTimeout(() => {
+    addLine('err', '> TOUS LES NOEUDS PRIMAIRES : HORS LIGNE');
+    addLine('red-bold', '> LE MULTIVERS EST MORT.');
+    addLine('dim', '> fin de transmission.');
+    const finalMsg = document.getElementById('final-msg');
+    finalMsg.style.display = 'block';
+    const btn = document.getElementById('replay-btn');
+    btn.style.display = 'inline-block';
+  }, 15500);
+}
+
+function replayAnimation() {
+  // Réinitialise le terminal
+  const term = document.getElementById('terminal');
+  term.innerHTML = '<span class="cursor"></span>';
+
+  // Réinitialise la carte
+  const mapSection = document.getElementById('map-section');
+  mapSection.classList.remove('visible');
+  mapSection.style.opacity = '0';
+  document.getElementById('grid').innerHTML = '';
+  document.getElementById('detail-panel').innerHTML = '<div class="detail-hint">↑ Cliquer sur un univers pour voir ses données.</div>';
+  document.getElementById('detail-panel').style.borderColor = '';
+  document.getElementById('collapse-bar').style.width = '0%';
+  document.getElementById('collapse-pct').textContent = '0%';
+  document.getElementById('alive-count').textContent = '15';
+
+  // Cache le message final + bouton
+  const finalMsg = document.getElementById('final-msg');
+  finalMsg.style.display = 'none';
+  document.getElementById('replay-btn').style.display = 'none';
+
+  // Réinitialise les états
+  universes.forEach(u => { nodeStates[u.id] = u.initState; });
+
+  // Relance tout
+  runTerminal();
+}
+
+runTerminal();
+</script>
+</body>
+</html>
